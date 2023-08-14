@@ -35,19 +35,31 @@ void insert_cb(struct client_book* cb, char* name, char* notes){
 void print_bucket(struct client* c, char* term, FILE* fp){
     for(struct client* cp = c; cp; cp = cp->next){
         if(!term || strstr(cp->name, term))
-            fprintf(fp, "%s: %s\n", cp->name, cp->notes);
+            fprintf(fp, "%s: \"%s\"\n", cp->name, cp->notes);
     }
 }
 
-void print_clients(struct client_book* cb, char** terms, int n_terms){
+void print_clients(struct client_book* cb, char** terms, int n_terms, FILE* fp){
+    if(!n_terms || !terms){
+        for(int i = 0; i < UINT8_MAX; ++i){
+            print_bucket(cb->c_buckets[i], NULL, fp);
+        }
+        return;
+    }
+    for(int i = 0; i < n_terms; ++i){
+        print_bucket(cb->c_buckets[(uint8_t)*terms[i]], terms[i], fp);
+    }
 }
 
 // if no matches are found, do a O(n) search through all elements
 
-int main(){
+int main(int argc, char** argv){
     struct client_book cb;
 
     init_cb(&cb);
+    insert_cb(&cb, "zack", "late");
     insert_cb(&cb, "asher lieber", "good man");
     insert_cb(&cb, "another name", "pretty good man");
+
+    print_clients(&cb, argv+1, argc-1, stdout);
 }
