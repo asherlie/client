@@ -151,7 +151,7 @@ _Bool read_client(struct client_book* cb, FILE* fp){
     return 1;
 }
 
-/* get rid of fallback in favor of a search_all option */
+// should be printed in a box if to the screen and not to stdout
 int print_clients(const struct client_book* cb, char** terms, int n_terms, FILE* fp, _Bool search_all){
     int ret = 0;
     struct client* cp;
@@ -198,13 +198,22 @@ void test(struct client_book* cb, FILE* fp){
 }
 
 /*
- * can just have -i and -o flags
+ * should it be put in a file?
+ *
+ * can just have -i, -o, -f and -u flags
  * everything else is considered a filter
  *
  * output will be written to ofile
  * input read from ifile
+ * -u enables updating an existing entry
+ * -f provides the persistent file to edit
+ *
+ * persistent file will be read from on startup and appended to with -i data
  * 
  * -i inserts data from -i file
+ *      
+ *
+ * -u enables updates
  *
  * -o outputs data to -o file
  *
@@ -212,9 +221,45 @@ void test(struct client_book* cb, FILE* fp){
  *  
  */
 
+/* returns NULL terminated char** */
+char** parse_args(int argc, char** argv, char** flags){
+    char** ret = calloc(sizeof(char*), argc+1);
+    char** arg = ret;
+
+    for(int i = 1; i < argc; ++i){
+        if(*argv[i] == '-'){
+            if(argc > i){
+                flags[argv[i][1]-'a'] = argv[i+1];
+                ++i;
+            }
+            else{
+                return ret;
+            }
+        }
+        else{
+            *(arg++) = argv[i];
+        }
+    }
+
+    return ret;
+}
+
 int main(int argc, char** argv){
     struct client_book cb;
     FILE* fp = stdout;
+    char* flags[26] = {0};
+
+    char** args = parse_args(argc, argv, flags);
+
+    puts("FLAGS");
+    for(int i = 0; i < 26; ++i){
+        if(flags[i])printf("  -%c: \"%s\"\n", 'a'+i, flags[i]);
+    }
+    puts("ARGS");
+    for(char** i = args; *i; ++i){
+        printf("  %s\n", *i);
+    }
+    exit(0);
 
     if(argc > 2 && *argv[argc-2] == '-' && argv[argc-2][1] == 'o'){
         // TODO: should just be w
