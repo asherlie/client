@@ -1,3 +1,4 @@
+// GOAL: 556 fields
 #include <stdio.h>
 #include <ctype.h>
 #include <string.h>
@@ -120,12 +121,42 @@ void print_client(const struct client* c, FILE* fp){
     fprintf(fp, "%s\n  %s\n\n", c->name, c->notes);
 }
 
+/*
+ * ignore \nline\n
+ * ignore leading non-ascii chars
+ * separate by multi-\n
+ * first (two?) ascii words
+*/
+
+_Bool parse_client(struct client_book* cb, FILE* fp){
+    char c;
+    char name[80];
+    char note[2048];
+    int running_nl = 0;
+    int running_txt = 0;
+    _Bool name = 1;
+    int idx = 0;
+
+    while((c = fgetc(fp)) != EOF){
+        switch(c){
+            case '\n':
+                ++running_nl;
+                if(running_nl > 1){
+                    running_txt = 0;
+                }
+            defualt:
+                running_nl = 0;
+        }
+    }
+}
+
 _Bool read_client(struct client_book* cb, FILE* fp){
     char c;
     /*char name_buf[1026];*/
     /*char note_buf[1026];*/
     char buf[2][1026];
     _Bool nl = 0;
+    int num_nl = 0;
     int idx = 0;
 
     while((c = fgetc(fp)) != EOF){
@@ -197,6 +228,15 @@ void test(struct client_book* cb, FILE* fp){
     /*print_clients(cb, NULL, 0, stdout, 0);*/
 }
 
+void mtest(char* fn){
+    struct client_book cb;
+    FILE* fp = fopen(fn, "r");
+    init_cb(&cb);
+    read_client(&cb, fp);
+    print_clients(&cb, NULL, 0, stdout, 0);
+    fclose(fp);
+}
+
 /*
  * should it be put in a file?
  *
@@ -228,7 +268,7 @@ char** parse_args(int argc, char** argv, char** flags){
 
     for(int i = 1; i < argc; ++i){
         if(*argv[i] == '-'){
-            if(argc > i){
+            if(argc > i+1){
                 flags[argv[i][1]-'a'] = argv[i+1];
                 ++i;
             }
@@ -245,6 +285,9 @@ char** parse_args(int argc, char** argv, char** flags){
 }
 
 int main(int argc, char** argv){
+    mtest(argv[1]);
+    return 0;
+
     struct client_book cb;
     FILE* fp = stdout;
     char* flags[26] = {0};
