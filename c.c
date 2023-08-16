@@ -238,6 +238,7 @@ _Bool parse_client(struct client_book* cb, FILE* fp){
         }
     }
     insert_cb(cb, name, note, 1);
+    free(note);
     /*printf("%i\n", br);*/
     return br != -1;
     /*printf("name: \"%s\"\n", name);*/
