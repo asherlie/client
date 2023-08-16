@@ -117,8 +117,9 @@ void insert_cb(struct client_book* cb, char* name, char* notes, _Bool cap){
     /*++cb->n_clients;*/
 }
 
-void print_client(const struct client* c, FILE* fp){
-    fprintf(fp, "%s\n  %s\n\n", c->name, c->notes);
+void print_client(const struct client* c, FILE* fp, _Bool name_only){
+    if(name_only)fprintf(fp, "%s\n", c->name);
+    else fprintf(fp, "%s\n  %s\n\n", c->name, c->notes);
 }
 
 /*
@@ -131,12 +132,13 @@ void print_client(const struct client* c, FILE* fp){
 _Bool parse_client(struct client_book* cb, FILE* fp){
     char* prev_ln = NULL;
     char* ln;
+    int consec_nl = 0;
     size_t sz;
     ssize_t br, prev_br = 0, prev_prev_br = 0;
 
     int idx = 0;
     char name[80];
-    char note[9048];
+    char* note = calloc(1000000, 1);
 
     // need to:
     //  consider first two words a name
@@ -172,6 +174,8 @@ _Bool parse_client(struct client_book* cb, FILE* fp){
             }
             /*for(char* i = ln; */
         }
+        if(!prev_br)++consec_nl;
+        else consec_nl = 0;
         /*puts(ln);*/
 
 /*
@@ -195,7 +199,11 @@ _Bool parse_client(struct client_book* cb, FILE* fp){
 
         // take two first words as a name
         if(name_phase){
-            char* sp = strchr(strchr(prev_ln, ' ')+1, ' ');
+            char* sp = strchr(prev_ln, ' ');
+            if(!sp)goto CONT;
+            sp = strchr(sp+1, ' ');
+            if(!sp)goto CONT;
+            /*char* sp = strchr(strchr(prev_ln, ' ')+1, ' ');*/
             *sp = 0;
             /*printf("name: \"%s\"\n", prev_ln);*/
             int nbytes = sp-prev_ln;
@@ -203,7 +211,7 @@ _Bool parse_client(struct client_book* cb, FILE* fp){
             memcpy(note+idx, sp+1, prev_br-nbytes);
             /*printf("%i\n", idx);*/
             idx += prev_br-nbytes;
-            printf("%i\n", idx);
+            /*printf("%i\n", idx);*/
             /*printf("%i-(%i) %i\n", prev_br, sp-prev_ln, idx);*/
             name_phase = 0;
         }
@@ -224,9 +232,16 @@ _Bool parse_client(struct client_book* cb, FILE* fp){
         ln = NULL;
 
         /*if(zombie)continue;*/
+        if(consec_nl == 4){
+            /*puts("4 nl");*/
+            break;
+        }
     }
-    printf("name: \"%s\"\n", name);
-    puts(note);
+    insert_cb(cb, name, note, 1);
+    /*printf("%i\n", br);*/
+    return br != -1;
+    /*printf("name: \"%s\"\n", name);*/
+    /*puts(note);*/
 }
 
 _Bool parse_client_exp(struct client_book* cb, FILE* fp){
@@ -402,7 +417,7 @@ _Bool read_client(struct client_book* cb, FILE* fp){
 }
 
 // should be printed in a box if to the screen and not to stdout
-int print_clients(const struct client_book* cb, char** terms, int n_terms, FILE* fp, _Bool search_all){
+int print_clients(const struct client_book* cb, char** terms, int n_terms, FILE* fp, _Bool search_all, _Bool name_only){
     int ret = 0;
     struct client* cp;
 
@@ -410,7 +425,7 @@ int print_clients(const struct client_book* cb, char** terms, int n_terms, FILE*
         for(int i = 0; i < n_terms; ++i){
             for(cp = cb->c_buckets[toupper((uint8_t)*terms[i])]; cp; cp = cp->next){
                 if(strcasestr(cp->name, terms[i])){
-                    print_client(cp, fp);
+                    print_client(cp, fp, name_only);
                     ++ret;
                 }
             }
@@ -422,14 +437,14 @@ int print_clients(const struct client_book* cb, char** terms, int n_terms, FILE*
                 if(terms && n_terms){
                     for(int j = 0; j < n_terms; ++j){
                         if(strcasestr(cp->name, terms[j])){
-                            print_client(cp, fp);
+                            print_client(cp, fp, name_only);
                             /* if this client matches one term, no need to check others */
                             break;
                         }
                     }
                 }
                 else{
-                    print_client(cp, fp);
+                    print_client(cp, fp, name_only);
                 }
             }
         }
@@ -451,8 +466,16 @@ void mtest(char* fn){
     struct client_book cb;
     FILE* fp = fopen(fn, "r");
     init_cb(&cb);
-    parse_client(&cb, fp);
-    print_clients(&cb, NULL, 0, stdout, 0);
+    while(parse_client(&cb, fp)){
+        /*puts("I");*/
+    }
+    printf("%i\n", cb.n_clients);
+    /*
+     * for(int i = 0; i < 100; ++i){
+     *     parse_client(&cb, fp);
+     * }
+    */
+    print_clients(&cb, NULL, 0, stdout, 0, 1);
     fclose(fp);
 }
 
@@ -504,7 +527,7 @@ char** parse_args(int argc, char** argv, char** flags){
 }
 
 int main(int argc, char** argv){
-    mtest("t.txt");
+    mtest("clients.txt");
     return 0;
 
     struct client_book cb;
@@ -542,7 +565,7 @@ int main(int argc, char** argv){
     insert_cb(&cb, "max", "xxx", 1);
     insert_cb(&cb, "moshe", "xxx", 1);
 
-    print_clients(&cb, argv+1, argc-1 - (fp == stdout ? 0 : 2), fp, 0);
+    print_clients(&cb, argv+1, argc-1 - (fp == stdout ? 0 : 2), fp, 0, 0);
 
 
     if(fp != stdout){
