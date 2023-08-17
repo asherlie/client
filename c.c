@@ -223,14 +223,24 @@ char* parse_client(struct client_book* cb, char* initial_prev, int* initial_prev
                 /*printf("in name phase with \"%s\"\n", initial_prev);*/
             /*}*/
             if(strcasestr(prev_ln, "full name")){
-                puts("found fn");
+                /*puts("found fn");*/
                 prev_ln += 10;
+                prev_br -= 10;
             }
-            printf("in name phase with \"%s\"\n", prev_ln);
+            for(int i = 0; i < prev_br; ++i){
+                if(isalpha(prev_ln[i]))
+                    break;
+                ++prev_ln;
+                --br;
+                --i;
+            }
+            /*while(isa)*/
+            /*skip non-alnum*/
+            /*printf("in name phase with \"%s\"\n", prev_ln);*/
             /*need to skip over "FULL NAME"*/
             char* sp = strchr(prev_ln, ' '), * sec_sp;
             if(!sp){
-                puts("REVERTING TO NAME PHASE for first ' '");
+                /*puts("REVERTING TO NAME PHASE for first ' '");*/
                 goto CONT;
             }
             sec_sp = strchr(sp+1, ' ');
