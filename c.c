@@ -38,7 +38,6 @@ void free_cb(struct client_book* cb){
     free(cb->c_buckets);
 }
 
-/* TODO: alphebatize */
 void insert_cb(struct client_book* cb, char* name, char* notes, _Bool cap){
     struct client* c, * e = calloc(sizeof(struct client), 1);
     struct client* clast = NULL;
@@ -119,7 +118,10 @@ void insert_cb(struct client_book* cb, char* name, char* notes, _Bool cap){
 
 void print_client(const struct client* c, FILE* fp, _Bool name_only){
     if(name_only)fprintf(fp, "%s\n", c->name);
-    else fprintf(fp, "%s\n  %s\n\n", c->name, c->notes);
+    else{
+        fprintf(fp, "%s\n%s\n", c->name, c->notes);
+        if(fp != stdout)fputs("\n\n\n\n", fp);
+    }
 }
 
 /*
@@ -162,6 +164,7 @@ char* parse_client(struct client_book* cb, char* initial_prev, int* initial_prev
     //  prev_br gets us over the edge to 4 \n
     //  but adam's name is stored in ln, not prev_ln
     
+    /*int progress = 0;*/
     _Bool zombie;
     (void)zombie;
     _Bool name_phase = 1;
@@ -246,6 +249,7 @@ char* parse_client(struct client_book* cb, char* initial_prev, int* initial_prev
             sec_sp = strchr(sp+1, ' ');
             if(!sec_sp)sec_sp = strchr(sp+1, '\n');
             if(!sec_sp)sec_sp = strchr(sp+1, '\r');
+            /*if(!sec_sp)sec_sp = strchr(sp+1, 0);*/
             #if 0
             if(!sp){
                 puts("REVERTING TO NAME PHASE for second ' '");
@@ -259,24 +263,37 @@ char* parse_client(struct client_book* cb, char* initial_prev, int* initial_prev
 
             /*now that we don't necessarily have sec_sp, our incrementation doesn't go past the NUL byte*/
             /*printf("name: \"%s\"\n", prev_ln);*/
+            /*we calc nbytes using sp, which gives us a bad nbytes - too small
+             */
             int nbytes = (sec_sp ? sec_sp : sp)-prev_ln;
             strcpy(name, prev_ln);
+            /*progress = 1;*/
             /*
              * we're copying from sp, not from the end of the string!
              * end of string is never sp unless we have two spaces
             */
-            memcpy(note+idx, sec_sp ? sec_sp+1 : sp+1, prev_br-nbytes);
-            /*printf("%i\n", idx);*/
-            idx += prev_br-nbytes;
+
+            /*each subsequent call puts an additional last name in note*/
+
+            /*printf("%i: copying to notes: %s\n", (_Bool)sec_sp, sec_sp ? sec_sp+1 : sp+1);*/
+            if(sec_sp){
+                memcpy(note+idx, sec_sp ? sec_sp+1 : sp+1, prev_br-nbytes);
+                /*progress = 2;*/
+                /*printf("%i\n", idx);*/
+                idx += prev_br-nbytes-1;
+            }
             /*printf("%i\n", idx);*/
             /*printf("%i-(%i) %i\n", prev_br, sp-prev_ln, idx);*/
             name_phase = 0;
         }
+        // we're copying past a nul byte already written to note
+        // which is why it's appearing as a short string
         else{
             /*printf("copying %s to note+%i\n", prev_ln, idx);*/
             /*prev_br is inaccurate*/
-            memcpy(note+idx-1, prev_ln, prev_br);
+            memcpy(note+idx, prev_ln, prev_br);
             idx += prev_br;
+            /*progress = 3;*/
             /*puts(note);*/
         }
 
@@ -294,7 +311,10 @@ char* parse_client(struct client_book* cb, char* initial_prev, int* initial_prev
 
         /*if(zombie)continue;*/
     }
-    insert_cb(cb, name, note, 1);
+    // TODO: fix the cause of this
+    // whitespace for both name, note
+    /*aha! this is being called after we exit for consec_nl*/
+    if(idx)insert_cb(cb, name, note, 1);
     /*printf("%s: %s\n", name, note);*/
     free(note);
     /*memset(name, sizeof(name), 0);*/
@@ -310,38 +330,6 @@ char* parse_client(struct client_book* cb, char* initial_prev, int* initial_prev
     /*return br != -1;*/
     /*printf("name: \"%s\"\n", name);*/
     /*puts(note);*/
-}
-
-_Bool read_client(struct client_book* cb, FILE* fp){
-    char c;
-    /*char name_buf[1026];*/
-    /*char note_buf[1026];*/
-    char buf[2][1026];
-    _Bool nl = 0;
-    /*int num_nl = 0;*/
-    int idx = 0;
-
-    while((c = fgetc(fp)) != EOF){
-        buf[nl][idx++] = c;
-        if(c == '\n'){
-            buf[nl][idx-1] = 0;
-            if(nl){
-                /* discared \n */
-                c = fgetc(fp);
-                break;
-            }
-            idx = 0;
-            nl = 1;
-        }
-    }
-    if(c == EOF)
-        return 0;
-
-    /*strcmp();*/
-    /*printf();*/
-    insert_cb(cb, buf[0], buf[1], 1);
-
-    return 1;
 }
 
 // should be printed in a box if to the screen and not to stdout
@@ -379,15 +367,6 @@ int print_clients(const struct client_book* cb, char** terms, int n_terms, FILE*
     }
 
     return ret;
-}
-
-void test(struct client_book* cb, FILE* fp){
-    while(read_client(cb, fp));
-    /*for(int i = 0; i < 6; ++i){*/
-        /*read_client(cb, fp);*/
-    /*}*/
-
-    /*print_clients(cb, NULL, 0, stdout, 0);*/
 }
 
 void mtest(char* fn){
@@ -458,7 +437,6 @@ char** parse_args(int argc, char** argv, char* flags[UINT8_MAX], int* nargs){
 }
 
 int main(int argc, char** argv){
-    /*mtest("clients.txt");*/
     int nargs;
     char* flags[UINT8_MAX] = {0};
     char** args = parse_args(argc, argv, flags, &nargs);
@@ -473,11 +451,14 @@ int main(int argc, char** argv){
 
     if(flags['i']){
         /*puts(flags['i']);*/
+        // specify lines between each entry
+        /*if flags['l']*/
         infp = fopen(flags['i'], "r");
         prev_ln = NULL;
         prev_br = 0;
         while((prev_ln = parse_client(&cb, prev_ln, &prev_br, infp)));
         /*print_clients(&cb, NULL, 0, stdout, 0, 1);*/
+        printf("loaded %i clients\n", cb.n_clients);
         fclose(infp);
     }
     
@@ -486,7 +467,6 @@ int main(int argc, char** argv){
     }
 
     print_clients(&cb, nargs ? args : NULL, nargs, outfp, 1, 0);
-    /*print_clients(const struct client_book* cb, char** terms, int n_terms, FILE* fp, _Bool search_all, _Bool name_only){*/
 
     if(outfp != stdout){
         fclose(outfp);
