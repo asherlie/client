@@ -244,6 +244,8 @@ char* parse_client(struct client_book* cb, char* initial_prev, int* initial_prev
                 goto CONT;
             }
             sec_sp = strchr(sp+1, ' ');
+            if(!sec_sp)sec_sp = strchr(sp+1, '\n');
+            if(!sec_sp)sec_sp = strchr(sp+1, '\r');
             #if 0
             if(!sp){
                 puts("REVERTING TO NAME PHASE for second ' '");
@@ -254,10 +256,16 @@ char* parse_client(struct client_book* cb, char* initial_prev, int* initial_prev
             // line as name
             /*char* sp = strchr(strchr(prev_ln, ' ')+1, ' ');*/
             if(sec_sp)*sec_sp = 0;
+
+            /*now that we don't necessarily have sec_sp, our incrementation doesn't go past the NUL byte*/
             /*printf("name: \"%s\"\n", prev_ln);*/
-            int nbytes = sp-prev_ln;
+            int nbytes = (sec_sp ? sec_sp : sp)-prev_ln;
             strcpy(name, prev_ln);
-            memcpy(note+idx, sp+1, prev_br-nbytes);
+            /*
+             * we're copying from sp, not from the end of the string!
+             * end of string is never sp unless we have two spaces
+            */
+            memcpy(note+idx, sec_sp ? sec_sp+1 : sp+1, prev_br-nbytes);
             /*printf("%i\n", idx);*/
             idx += prev_br-nbytes;
             /*printf("%i\n", idx);*/
@@ -287,6 +295,7 @@ char* parse_client(struct client_book* cb, char* initial_prev, int* initial_prev
         /*if(zombie)continue;*/
     }
     insert_cb(cb, name, note, 1);
+    /*printf("%s: %s\n", name, note);*/
     free(note);
     /*memset(name, sizeof(name), 0);*/
     /*printf("%i\n", br);*/
