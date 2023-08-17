@@ -129,13 +129,19 @@ void print_client(const struct client* c, FILE* fp, _Bool name_only){
  * first (two?) ascii words
 */
 
-_Bool parse_client(struct client_book* cb, FILE* fp){
-    char* prev_ln = NULL;
+/*need to update prev_br so it's not ignored!*/
+char* parse_client(struct client_book* cb, char* initial_prev, int* initial_prev_br, FILE* fp){
+    char* prev_ln = initial_prev;
     char* ln;
     int consec_nl = 0;
     size_t sz;
-    ssize_t br, prev_br = 0, prev_prev_br = 0;
+    ssize_t br, prev_br = *initial_prev_br, prev_prev_br = 0;
 
+    /*
+     * if(1 || prev_br){
+     *     printf("iniital prev br: %li\n", prev_br);
+     * }
+    */
     int idx = 0;
     char name[80];
     char* note = calloc(1000000, 1);
@@ -148,8 +154,16 @@ _Bool parse_client(struct client_book* cb, FILE* fp){
     //  stop parse-ing after multiple \n\n are found
     //      IF not a lone line AND 
     //
+    //finished abby - 
+    //  read first \n
+    //  read 3 \ns
+    //
+    //  then read adam's first line before we got to 4 \n
+    //  prev_br gets us over the edge to 4 \n
+    //  but adam's name is stored in ln, not prev_ln
     
     _Bool zombie;
+    (void)zombie;
     _Bool name_phase = 1;
     while((br = getline(&ln, &sz, fp)) != -1){
         zombie = 0;
@@ -174,6 +188,7 @@ _Bool parse_client(struct client_book* cb, FILE* fp){
             }
             /*for(char* i = ln; */
         }
+        // is this proper? sometimes we have p
         if(!prev_br)++consec_nl;
         else consec_nl = 0;
         /*puts(ln);*/
@@ -188,6 +203,10 @@ _Bool parse_client(struct client_book* cb, FILE* fp){
         // ignore zombie line
         if(!prev_prev_br && !br){
             /*printf("found zombie \"%s\"\n", prev_ln);*/
+            // lines should maybe not be zombs if middle is also \n
+            // maybe just increment consec_nl and do conside ra zombie
+            // oh wait that's what we do
+            /*++consec_nl;*/
             zombie = 1;
             goto CONT;
             /*printf("%i\n", prev_br);*/
@@ -199,12 +218,28 @@ _Bool parse_client(struct client_book* cb, FILE* fp){
 
         // take two first words as a name
         if(name_phase){
-            char* sp = strchr(prev_ln, ' ');
-            if(!sp)goto CONT;
-            sp = strchr(sp+1, ' ');
-            if(!sp)goto CONT;
+        /*we must stay in name phase */
+            /*if(initial_prev){*/
+                /*printf("in name phase with \"%s\"\n", initial_prev);*/
+            /*}*/
+            printf("in name phase with \"%s\"\n", prev_ln);
+            /*need to skip over "FULL NAME"*/
+            char* sp = strchr(prev_ln, ' '), * sec_sp;
+            if(!sp){
+                puts("REVERTING TO NAME PHASE for first ' '");
+                goto CONT;
+            }
+            sec_sp = strchr(sp+1, ' ');
+            #if 0
+            if(!sp){
+                puts("REVERTING TO NAME PHASE for second ' '");
+                goto CONT;
+            }
+            #endif
+            // there's a chance name is alone on a line, in which case we'll interpret the rest of the
+            // line as name
             /*char* sp = strchr(strchr(prev_ln, ' ')+1, ' ');*/
-            *sp = 0;
+            if(sec_sp)*sec_sp = 0;
             /*printf("name: \"%s\"\n", prev_ln);*/
             int nbytes = sp-prev_ln;
             strcpy(name, prev_ln);
@@ -226,163 +261,32 @@ _Bool parse_client(struct client_book* cb, FILE* fp){
         /*if(prev_br && !zombie)puts(prev_ln);*/
 
     CONT:
+        if(consec_nl == 3){
+            /*puts("4 nl");*/
+            break;
+        }
         prev_ln = ln;
         prev_prev_br = prev_br;
         prev_br = br;
         ln = NULL;
 
         /*if(zombie)continue;*/
-        if(consec_nl == 4){
-            /*puts("4 nl");*/
-            break;
-        }
     }
     insert_cb(cb, name, note, 1);
     free(note);
+    /*memset(name, sizeof(name), 0);*/
     /*printf("%i\n", br);*/
-    return br != -1;
+    if(br == -1)
+        return NULL;
+
+    *initial_prev_br = br;
+    return strdup(ln);
+
+    *initial_prev_br = prev_br;
+    return strdup(prev_ln);
+    /*return br != -1;*/
     /*printf("name: \"%s\"\n", name);*/
     /*puts(note);*/
-}
-
-_Bool parse_client_exp(struct client_book* cb, FILE* fp){
-    char c, prev;
-    char name[80];
-    char note[9048];
-    int running_nl = 1;
-    int running_txt = 0;
-    int n_words = 0;
-    int running_nonalph = 0;
-    int running_word = 0;
-    _Bool n_phase = 1;
-    _Bool alnum;
-    int idx = 0;
-    _Bool lone_line;
-    _Bool possible_single_line = 1;
-
-    int count = 0;
-
-    while((c = fgetc(fp)) != EOF){
-        /*printf("%c\n", c);*/
-        // this is catching a lot
-        // alnum is fine as long as it's not at beginning
-        // we need a \r
-        #if 0
-        alnum = isalnum(c);
-        if(alnum)running_nonalph = 0;
-        else{
-            ++running_nonalph;
-            /*++running_nl;*/
-            /*if(n_phase && running_nonalph > 1 && !(running_word || running_txt))*/
-            if(n_phase && running_nonalph && !(running_word || running_txt))
-                continue;
-        }
-        #endif
-        /*lone_line = (!idx || running_nl) && */
-        /* discard leading nonalnum chars */
-        if(idx == 0 && n_phase && !isalpha(c)){
-            puts("discarding nonalph");
-            continue;
-        }
-        switch(c){
-            case '\r':
-            case '\n':
-                if(running_txt){
-                    running_nl = 0;
-                }
-                puts("FOUND NL");
-                // discard single lines of text surrounded by \n
-                if(running_txt == 1){
-                    puts("running_txt == 1, discarding");
-                    // is this adequate to discard?
-                    /*(n_phase ? name : note)[idx] = 0;*/
-                    n_phase = 1;
-                    /*printf("\"%s\"\n", n_phase ? name : note);*/
-                    idx = 0;
-                }
-                ++running_nl;
-                printf("++running_nl -> %i\n", running_nl);
-                if(running_nl > 1){
-                    running_txt = 0;
-                    printf("running_nl > 1, running_txt = 0\n");
-                    // if we've had consecutive \n then we're back on name
-                    if(!n_phase){
-                        printf("finished parsing client number %i\n", ++count);
-                        puts("setting idx to 0 and switching to name phase");
-                        note[idx] = 0;
-                        /*printf("note: \"%s\"\n", note);*/
-                        idx = 0;
-                        n_phase = 1;
-                        n_words = 0;
-                    }
-                }
-                // lone line not working, 11/_ is being considered a name
-                printf("poss single line? %i\n", possible_single_line);
-                if(possible_single_line){
-                    lone_line = 1;
-                    (n_phase ? name : note)[idx] = 0;
-                    idx = 0;
-                    printf("found a lone line: %s\n", n_phase ? name : note);
-                    possible_single_line = 0;
-                    /*possible_single_line*/
-                    /*continue;*/
-                }
-                // need to somehow increment running_txt if nl after a line of text
-                // what about lone line?
-                if(running_nl == 1){
-                    ++running_txt;
-                }
-                break;
-            case ' ':
-                if(running_word){
-                    ++n_words;
-                }
-                else{
-                    puts("skipping whitespace");
-                    continue;
-                }
-                /* consider this a name */
-                printf("found ' ', n_words == %i\n", n_words);
-                if(n_words == 2 && n_phase){
-                    name[idx] = 0;
-                    printf("name: \"%s\"\n", name);
-                    /*
-                     * okay, name is valid - i see why
-                     * we need to lookahead and see if we're on a lone line
-                     * if so, discard recent name
-                     *
-                     * although we're essentially doing that
-                    */
-
-                    idx = 0;
-                    n_phase = 0;
-                    n_words = 0;
-                    continue;
-                }
-                /*break;*/
-            default:
-                if(running_nl){
-                    possible_single_line = 1;
-                }
-                // aha, this disqualifies single lines before the line is even over
-                // this shouldn't be set to 0 until we get our new \n
-                // if newline and running_word, then we know 
-                // if newline and running_text
-                /*else possible_single_line = 0;*/
-                ++running_word;
-                /*running_nl = 0;*/
-                // need to set both running_nl and possible_single_line to 0 when appropriate
-                // i'll only know at the end of a line
-                if(n_phase){
-                    name[idx++] = c;
-                }
-                else{
-                    note[idx++] = c;
-                }
-        }
-        prev = c;
-    }
-    return 0;
 }
 
 _Bool read_client(struct client_book* cb, FILE* fp){
@@ -391,7 +295,7 @@ _Bool read_client(struct client_book* cb, FILE* fp){
     /*char note_buf[1026];*/
     char buf[2][1026];
     _Bool nl = 0;
-    int num_nl = 0;
+    /*int num_nl = 0;*/
     int idx = 0;
 
     while((c = fgetc(fp)) != EOF){
@@ -465,12 +369,14 @@ void test(struct client_book* cb, FILE* fp){
 
 void mtest(char* fn){
     struct client_book cb;
+    char* prev_ln = NULL;
+    int prev_br = 0;
     FILE* fp = fopen(fn, "r");
     init_cb(&cb);
-    while(parse_client(&cb, fp)){
+    while((prev_ln = parse_client(&cb, prev_ln, &prev_br, fp))){
         /*puts("I");*/
     }
-    printf("%i\n", cb.n_clients);
+    printf("%i clients\n", cb.n_clients);
     /*
      * for(int i = 0; i < 100; ++i){
      *     parse_client(&cb, fp);
