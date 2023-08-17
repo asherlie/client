@@ -202,7 +202,7 @@ char* parse_client(struct client_book* cb, char* initial_prev, int* initial_prev
         /*H*/
         // ignore zombie line
         if(!prev_prev_br && !br){
-            /*printf("found zombie \"%s\"\n", prev_ln);*/
+            printf("found zombie \"%s\"\n", prev_ln);
             // lines should maybe not be zombs if middle is also \n
             // maybe just increment consec_nl and do conside ra zombie
             // oh wait that's what we do
@@ -425,14 +425,14 @@ void mtest(char* fn){
  */
 
 /* returns NULL terminated char** */
-char** parse_args(int argc, char** argv, char** flags){
+char** parse_args(int argc, char** argv, char* flags[UINT8_MAX]){
     char** ret = calloc(sizeof(char*), argc+1);
     char** arg = ret;
 
     for(int i = 1; i < argc; ++i){
         if(*argv[i] == '-'){
             if(argc > i+1){
-                flags[argv[i][1]-'a'] = argv[i+1];
+                flags[argv[i][1]] = argv[i+1];
                 ++i;
             }
             else{
@@ -448,52 +448,32 @@ char** parse_args(int argc, char** argv, char** flags){
 }
 
 int main(int argc, char** argv){
-    mtest("clients.txt");
-    return 0;
-
-    struct client_book cb;
-    FILE* fp = stdout;
-    char* flags[26] = {0};
-
+    char* flags[UINT8_MAX] = {0};
     char** args = parse_args(argc, argv, flags);
+    struct client_book cb;
+    FILE* outfp = stdout;
+    FILE* infp = NULL;
 
-    puts("FLAGS");
-    for(int i = 0; i < 26; ++i){
-        if(flags[i])printf("  -%c: \"%s\"\n", 'a'+i, flags[i]);
-    }
-    puts("ARGS");
-    for(char** i = args; *i; ++i){
-        printf("  %s\n", *i);
-    }
-    exit(0);
-
-    if(argc > 2 && *argv[argc-2] == '-' && argv[argc-2][1] == 'o'){
-        // TODO: should just be w
-        fp = fopen(argv[argc-1], "w+");
-    }
+    int prev_br;
+    char* prev_ln;
 
     init_cb(&cb);
-    insert_cb(&cb, "zack", "late", 1);
-    insert_cb(&cb, "asher lieber", "good man", 1);
-    insert_cb(&cb, "chrib", "bla bla", 1);
-    insert_cb(&cb, "chria", "bla bla", 1);
-    insert_cb(&cb, "asher liebeq", "good man", 1);
-    insert_cb(&cb, "chric", "bla bla", 1);
-    insert_cb(&cb, "chrac", "bla bla", 1);
-    insert_cb(&cb, "asher liebea", "good man", 1);
-    insert_cb(&cb, "zacj", "good man", 1);
-    insert_cb(&cb, "chris", "bla bla", 1);
-    insert_cb(&cb, "max", "xxx", 1);
-    insert_cb(&cb, "moshe", "xxx", 1);
 
-    print_clients(&cb, argv+1, argc-1 - (fp == stdout ? 0 : 2), fp, 0, 0);
+    if(flags['i']){
+        puts(flags['i']);
+        infp = fopen(flags['i'], "r");
+        prev_ln = NULL;
+        prev_br = 0;
+        while((prev_ln = parse_client(&cb, prev_ln, &prev_br, infp)));
 
+    }
+    
+    if(flags['o']){
+        outfp = fopen(flags['o'], "w");
+    }
 
-    if(fp != stdout){
-        fseek(fp, 0, SEEK_SET);
-        test(&cb, fp);
-        printf("%i elements post test\n", cb.n_clients);
-        fclose(fp);
+    if(outfp != stdout){
+        fclose(outfp);
     }
 
     free_cb(&cb);
