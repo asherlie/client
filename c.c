@@ -143,7 +143,7 @@ char* parse_client(struct client_book* cb, char* initial_prev, int* initial_prev
      * }
     */
     int idx = 0;
-    char name[80];
+    char name[80] = {0};
     char* note = calloc(1000000, 1);
 
     // need to:
@@ -222,6 +222,10 @@ char* parse_client(struct client_book* cb, char* initial_prev, int* initial_prev
             /*if(initial_prev){*/
                 /*printf("in name phase with \"%s\"\n", initial_prev);*/
             /*}*/
+            if(strcasestr(prev_ln, "full name")){
+                puts("found fn");
+                prev_ln += 10;
+            }
             printf("in name phase with \"%s\"\n", prev_ln);
             /*need to skip over "FULL NAME"*/
             char* sp = strchr(prev_ln, ' '), * sec_sp;
