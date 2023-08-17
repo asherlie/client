@@ -132,9 +132,9 @@ void print_client(const struct client* c, FILE* fp, _Bool name_only){
 /*need to update prev_br so it's not ignored!*/
 char* parse_client(struct client_book* cb, char* initial_prev, int* initial_prev_br, FILE* fp){
     char* prev_ln = initial_prev;
-    char* ln;
+    char* ln = NULL;
     int consec_nl = 0;
-    size_t sz;
+    size_t sz = 0;
     ssize_t br, prev_br = *initial_prev_br, prev_prev_br = 0;
 
     /*
@@ -202,7 +202,7 @@ char* parse_client(struct client_book* cb, char* initial_prev, int* initial_prev
         /*H*/
         // ignore zombie line
         if(!prev_prev_br && !br){
-            printf("found zombie \"%s\"\n", prev_ln);
+            /*printf("found zombie \"%s\"\n", prev_ln);*/
             // lines should maybe not be zombs if middle is also \n
             // maybe just increment consec_nl and do conside ra zombie
             // oh wait that's what we do
@@ -425,14 +425,14 @@ void mtest(char* fn){
  */
 
 /* returns NULL terminated char** */
-char** parse_args(int argc, char** argv, char* flags[UINT8_MAX]){
+char** parse_args(int argc, char** argv, char* flags[UINT8_MAX], int* nargs){
     char** ret = calloc(sizeof(char*), argc+1);
     char** arg = ret;
 
     for(int i = 1; i < argc; ++i){
         if(*argv[i] == '-'){
             if(argc > i+1){
-                flags[argv[i][1]] = argv[i+1];
+                flags[(int)argv[i][1]] = argv[i+1];
                 ++i;
             }
             else{
@@ -444,12 +444,15 @@ char** parse_args(int argc, char** argv, char* flags[UINT8_MAX]){
         }
     }
 
+    *nargs = arg-ret;
     return ret;
 }
 
 int main(int argc, char** argv){
+    /*mtest("clients.txt");*/
+    int nargs;
     char* flags[UINT8_MAX] = {0};
-    char** args = parse_args(argc, argv, flags);
+    char** args = parse_args(argc, argv, flags, &nargs);
     struct client_book cb;
     FILE* outfp = stdout;
     FILE* infp = NULL;
@@ -460,17 +463,21 @@ int main(int argc, char** argv){
     init_cb(&cb);
 
     if(flags['i']){
-        puts(flags['i']);
+        /*puts(flags['i']);*/
         infp = fopen(flags['i'], "r");
         prev_ln = NULL;
         prev_br = 0;
         while((prev_ln = parse_client(&cb, prev_ln, &prev_br, infp)));
-
+        /*print_clients(&cb, NULL, 0, stdout, 0, 1);*/
+        fclose(infp);
     }
     
     if(flags['o']){
         outfp = fopen(flags['o'], "w");
     }
+
+    print_clients(&cb, nargs ? args : NULL, nargs, outfp, 1, 0);
+    /*print_clients(const struct client_book* cb, char** terms, int n_terms, FILE* fp, _Bool search_all, _Bool name_only){*/
 
     if(outfp != stdout){
         fclose(outfp);
